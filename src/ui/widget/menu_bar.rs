@@ -1,5 +1,3 @@
-use std::alloc::System;
-
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
@@ -128,7 +126,7 @@ impl<'a> MenuBar<'a> {
     }
 }
 
-impl<'a> Widget for &MenuBar<'a> {
+impl Widget for &MenuBar<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         // Render the menu bar
         //  Calculate the layout for the menu bar
@@ -193,11 +191,105 @@ impl<'a> MenuTab<'a> {
     }
 }
 
-impl<'a> Widget for &MenuTab<'a> {
+impl Widget for &MenuTab<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         // Render the menu tab
+        //  Always render the menu tab self
+        //  Define the label
+        let hotkey = match self.hotkey {
+            Some(ch) => format!("({})", ch),
+            None => "".to_string(),
+        };
+        let label = format!(" {label}{hotkey} ", label = self.label, hotkey = hotkey);
+        //  Define the style
+        let style: Style;
+        if self.state.is_disabled {
+            style = self.menu_bar_style.disabled_style;
+        } else if self.state.is_selected {
+            style = self.menu_bar_style.selected_style;
+        } else if self.state.is_focused {
+            style = self.menu_bar_style.focused_style;
+        } else {
+            style = self.menu_bar_style.default_style;
+        }
+        Span::styled(label, style).render(area, buf);
 
-        // Always render the menu tab self
+        // If there are menu tab items and the menu tab is selected
+        // then render the menu tab items
+        if self.menu_tab_items.is_some() && self.state.is_selected {
+            // Calculate the render area
+            let mut width = 0u16;
+            self.menu_tab_items
+                .as_ref()
+                .unwrap()
+                .iter()
+                .for_each(|menu_tab_item| {
+                    let len;
+                    if menu_tab_item.hotkey.is_some() {
+                        let hotkey = menu_tab_item.hotkey.unwrap();
+                        len = (menu_tab_item.label.len() + hotkey.len()) as u16 + 4;
+                    } else {
+                        len = menu_tab_item.label.len() as u16 + 2;
+                    }
+                    if len > width {
+                        width = len;
+                    }
+                });
+            width += 2;
+            let area = Rect {
+                x: area.x,
+                y: area.y + 1,
+                width,
+                height: self.menu_tab_items.as_ref().unwrap().len() as u16,
+            };
+
+            // Calculate the layout for the menu tab items
+            let mut constraints = vec![];
+
+            for (i, menu_tab_item) in self.menu_tab_items.as_ref().unwrap().iter().enumerate() {
+                let len: u16;
+                if menu_tab_item.hotkey.is_some() {
+                    let hotkey = menu_tab_item.hotkey.unwrap();
+                    len = (menu_tab_item.label.len() + hotkey.len()) as u16 + 4;
+                } else {
+                    len = menu_tab_item.label.len() as u16 + 2;
+                }
+                constraints.push(Constraint::Length(len));
+            }
+            constraints.push(Constraint::Min(0));
+
+            let layout = Layout::new(Direction::Vertical, constraints).split(area);
+
+            // Render the menu tab items
+            for (i, menu_tab_item) in self.menu_tab_items.as_ref().unwrap().iter().enumerate() {
+                menu_tab_item.render(layout[i], buf);
+            }
+        }
+    }
+}
+
+impl<'a> MenuTabItem<'a> {
+    pub fn new(
+        label: String,
+        hotkey: Option<&'a str>,
+        sub_menu_tab_items: Option<Vec<MenuTabItem<'a>>>,
+        state: &'a MenuTabItemUiState,
+        menu_bar_style: &'a MenuBarStyle,
+    ) -> Self {
+        Self {
+            label,
+            hotkey,
+            sub_menu_tab_items,
+            state,
+            menu_bar_style,
+        }
+    }
+}
+
+impl Widget for &MenuTabItem<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        // Render the menu tab item
+
         // Define the label
         let hotkey = match self.hotkey {
             Some(ch) => format!("({})", ch),
@@ -206,18 +298,35 @@ impl<'a> Widget for &MenuTab<'a> {
         let label = format!(" {label}{hotkey} ", label = self.label, hotkey = hotkey);
         // Define the style
         let style: Style;
-        if self.state.is_focused {
-            style = self.menu_bar_style.focused_style;
+        if self.state.is_disabled {
+            style = self.menu_bar_style.disabled_style;
         } else if self.state.is_selected {
             style = self.menu_bar_style.selected_style;
-        } else if self.state.is_disabled {
-            style = self.menu_bar_style.disabled_style;
+        } else if self.state.is_focused {
+            style = self.menu_bar_style.focused_style;
         } else {
             style = self.menu_bar_style.default_style;
         }
 
-        Span::styled(label, style).render(area, buf);
+        // Calculate the layout
+        let constraints = if self.sub_menu_tab_items.is_none() {
+            vec![Constraint::Length(label.len() as u16), Constraint::Min(0)]
+        } else {
+            vec![
+                Constraint::Length(label.len() as u16),
+                Constraint::Min(0),
+                Constraint::Length(1),
+            ]
+        };
+        let layout = Layout::new(Direction::Horizontal, constraints).split(area);
 
-        // Render the selected menu tab item
+        Span::styled(label, style).render(layout[0], buf);
+        Block::default()
+            .borders(Borders::NONE)
+            .style(style)
+            .render(layout[1], buf);
+        // [ ] if there are sub items, add a right arrow
+
+        // [ ] if there are sub items and the menu tab item is selected, render the sub items
     }
 }

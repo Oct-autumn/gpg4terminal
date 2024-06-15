@@ -21,13 +21,6 @@ pub struct HintBar {
     pub description: Style,
 }
 
-pub struct Logo {
-    pub rat: Color,
-    pub rat_eye: Color,
-    pub rat_eye_alt: Color,
-    pub term: Color,
-}
-
 pub const THEME: Theme = Theme {
     content: Style::new().bg(DARK_PURPLE).fg(LIGHT_GRAY),
     menu_bar: MenuBar {

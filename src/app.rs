@@ -13,8 +13,7 @@ use crate::{
     event_handler::key_board_handler,
     theme::THEME,
     ui::{
-        menu_bar::{init_menu_bar_state, render_menu_bar, MENU_TABS},
-        widget::menu_bar::{MenuBar, MenuBarStyle, MenuBarUiState, MenuTab, MenuTabUiState},
+        menu_bar::{init_menu_bar_state, render_menu_bar},
         FocusOn, UiState,
     },
 };
@@ -73,15 +72,19 @@ impl App {
                 }
                 (true, key_board_handler::EventResult::QuitMenu) => {
                     self.ui_state.focus_on = FocusOn::MainPanel;
-                    self.ui_state
-                        .menu_bar_state
-                        .tab_state
-                        .iter_mut()
-                        .for_each(|tab| {
-                            tab.is_focused = false;
-                        });
+                    // Recursively reset selection and focus state
+                    for tab in &mut self.ui_state.menu_bar_state.tab_state {
+                        tab.is_focused = false;
+                        tab.is_selected = false;
+                        if let Some(sub_items) = &mut tab.sub_item_state {
+                            for item in sub_items {
+                                item.is_focused = false;
+                                item.is_selected = false;
+                            }
+                        }
+                    }
                 }
-                (true, key_board_handler::EventResult::MenuLeft) => {
+                (true, key_board_handler::EventResult::MenuPrevItem) => {
                     if self.ui_state.focus_on == FocusOn::MenuTab {
                         // Move focus to prev tab
                         let current_tab = self.ui_state.menu_bar_state.focus_on;
@@ -94,22 +97,101 @@ impl App {
 
                         self.ui_state.menu_bar_state.tab_state[current_tab].is_focused = false;
                         self.ui_state.menu_bar_state.tab_state[prev_tab].is_focused = true;
+                    } else {
+                        let current_tab = self.ui_state.menu_bar_state.focus_on;
+                        // Move focus to prev tab item
+                        let current_item =
+                            self.ui_state.menu_bar_state.tab_state[current_tab].focus_on;
+                        let prev_item = if current_item != 0 {
+                            current_item - 1
+                        } else {
+                            current_item
+                        };
+                        self.ui_state.menu_bar_state.tab_state[current_tab].focus_on = prev_item;
+
+                        self.ui_state.menu_bar_state.tab_state[current_tab]
+                            .sub_item_state
+                            .as_mut()
+                            .unwrap()[current_item]
+                            .is_focused = false;
+                        self.ui_state.menu_bar_state.tab_state[current_tab]
+                            .sub_item_state
+                            .as_mut()
+                            .unwrap()[prev_item]
+                            .is_focused = true;
                     }
                 }
-                (true, key_board_handler::EventResult::MenuRight) => {
+                (true, key_board_handler::EventResult::MenuNextItem) => {
                     if self.ui_state.focus_on == FocusOn::MenuTab {
                         // Move focus to next tab
                         let current_tab = self.ui_state.menu_bar_state.focus_on;
-                        let next_tab = if current_tab != MENU_TABS.len() - 1 {
-                            current_tab + 1
-                        } else {
-                            current_tab
-                        };
+                        let next_tab =
+                            if current_tab != self.ui_state.menu_bar_state.tab_state.len() - 1 {
+                                current_tab + 1
+                            } else {
+                                current_tab
+                            };
                         self.ui_state.menu_bar_state.focus_on = next_tab;
 
                         self.ui_state.menu_bar_state.tab_state[current_tab].is_focused = false;
                         self.ui_state.menu_bar_state.tab_state[next_tab].is_focused = true;
+                    } else {
+                        // Move focus to prev tab item
+                        let current_tab = self.ui_state.menu_bar_state.focus_on;
+                        let current_item =
+                            self.ui_state.menu_bar_state.tab_state[current_tab].focus_on;
+                        let next_item = if current_item
+                            != self.ui_state.menu_bar_state.tab_state[current_tab]
+                                .sub_item_state
+                                .as_ref()
+                                .unwrap()
+                                .len()
+                                - 1
+                        {
+                            current_item + 1
+                        } else {
+                            current_item
+                        };
+                        self.ui_state.menu_bar_state.tab_state[current_tab].focus_on = next_item;
+
+                        self.ui_state.menu_bar_state.tab_state[current_tab]
+                            .sub_item_state
+                            .as_mut()
+                            .unwrap()[current_item]
+                            .is_focused = false;
+                        self.ui_state.menu_bar_state.tab_state[current_tab]
+                            .sub_item_state
+                            .as_mut()
+                            .unwrap()[next_item]
+                            .is_focused = true;
                     }
+                }
+                (true, key_board_handler::EventResult::MenuChoose) => {
+                    if self.ui_state.focus_on == FocusOn::MenuTab {
+                        // Select the focused tab and move focus to the first tab item
+                        let current_tab = self.ui_state.menu_bar_state.focus_on;
+                        self.ui_state.menu_bar_state.tab_state[current_tab].is_selected = true;
+                        if self.ui_state.menu_bar_state.tab_state
+                            [self.ui_state.menu_bar_state.focus_on]
+                            .sub_item_state
+                            .is_some()
+                        {
+                            self.ui_state.focus_on = FocusOn::MenuTabItem;
+                            self.ui_state.menu_bar_state.tab_state[current_tab].focus_on = 0;
+                            self.ui_state.menu_bar_state.tab_state[current_tab]
+                                .sub_item_state
+                                .as_mut()
+                                .unwrap()[0]
+                                .is_focused = true;
+                        } else {
+                        }
+                    }
+                }
+                (true, key_board_handler::EventResult::PrevMenuLevel) => {
+                    // De-Select the focused tab and move focus to it
+                    let current_tab = self.ui_state.menu_bar_state.focus_on;
+                    self.ui_state.menu_bar_state.tab_state[current_tab].is_selected = false;
+                    self.ui_state.focus_on = FocusOn::MenuTab;
                 }
                 _ => (),
             }
