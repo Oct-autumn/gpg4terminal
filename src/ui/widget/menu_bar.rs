@@ -1,3 +1,8 @@
+use std::{
+    cell::{Ref, RefCell},
+    rc::Rc,
+};
+
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
@@ -51,7 +56,7 @@ pub struct MenuBar<'a> {
     title: Option<String>,
     /// List of MenuTabs
     menu_tabs: Vec<MenuTab<'a>>,
-    state: &'a MenuBarUiState,
+    state: Rc<RefCell<MenuBarUiState>>,
     menu_bar_style: &'a MenuBarStyle,
 }
 
@@ -60,7 +65,7 @@ pub struct MenuTab<'a> {
     label: String,
     hotkey: Option<&'a str>,
     menu_tab_items: Option<Vec<MenuTabItem<'a>>>,
-    state: &'a MenuTabUiState,
+    state: Rc<RefCell<MenuTabUiState>>,
     menu_bar_style: &'a MenuBarStyle,
 }
 
@@ -69,7 +74,7 @@ pub struct MenuTabItem<'a> {
     label: String,
     hotkey: Option<&'a str>,
     sub_menu_tab_items: Option<Vec<MenuTabItem<'a>>>,
-    state: &'a MenuTabItemUiState,
+    state: Rc<RefCell<MenuTabItemUiState>>,
     menu_bar_style: &'a MenuBarStyle,
 }
 
@@ -79,7 +84,7 @@ pub struct MenuTabItem<'a> {
 #[derive(Clone, PartialEq, Eq)]
 pub struct MenuBarUiState {
     pub focus_on: usize,
-    pub tab_state: Vec<MenuTabUiState>,
+    pub tab_state: Vec<Rc<RefCell<MenuTabUiState>>>,
 }
 
 /// MenuTab UI State
@@ -91,7 +96,7 @@ pub struct MenuTabUiState {
     pub focus_on: usize,
     pub is_disabled: bool,
     pub is_selected: bool,
-    pub sub_item_state: Option<Vec<MenuTabItemUiState>>,
+    pub sub_item_state: Option<Vec<Rc<RefCell<MenuTabItemUiState>>>>,
 }
 
 /// MenuTabItem UI State
@@ -103,14 +108,14 @@ pub struct MenuTabItemUiState {
     pub focus_on: usize,
     pub is_disabled: bool,
     pub is_selected: bool,
-    pub sub_item_state: Option<Vec<MenuTabItemUiState>>,
+    pub sub_item_state: Option<Vec<Rc<RefCell<MenuTabItemUiState>>>>,
 }
 
 impl<'a> MenuBar<'a> {
     pub fn new(
         title: Option<String>,
         menu_tabs: Vec<MenuTab<'a>>,
-        state: &'a MenuBarUiState,
+        state: Rc<RefCell<MenuBarUiState>>,
         menu_bar_style: &'a MenuBarStyle,
     ) -> Self {
         assert!(
@@ -120,8 +125,8 @@ impl<'a> MenuBar<'a> {
         Self {
             title,
             menu_tabs,
-            menu_bar_style,
             state,
+            menu_bar_style,
         }
     }
 }
@@ -142,7 +147,7 @@ impl Widget for &MenuBar<'_> {
             let len: u16;
             if menu_tab.hotkey.is_some() {
                 let hotkey = menu_tab.hotkey.unwrap();
-                len = (menu_tab.label.len() + hotkey.len()) as u16 + 4;
+                len = (menu_tab.label.len() + hotkey.len()) as u16 + 5;
             } else {
                 len = menu_tab.label.len() as u16 + 2;
             }
@@ -178,7 +183,7 @@ impl<'a> MenuTab<'a> {
         label: String,
         hotkey: Option<&'a str>,
         menu_tab_items: Option<Vec<MenuTabItem<'a>>>,
-        state: &'a MenuTabUiState,
+        state: Rc<RefCell<MenuTabUiState>>,
         menu_bar_style: &'a MenuBarStyle,
     ) -> Self {
         Self {
@@ -197,17 +202,17 @@ impl Widget for &MenuTab<'_> {
         //  Always render the menu tab self
         //  Define the label
         let hotkey = match self.hotkey {
-            Some(ch) => format!("({})", ch),
+            Some(ch) => format!(" ({})", ch),
             None => "".to_string(),
         };
         let label = format!(" {label}{hotkey} ", label = self.label, hotkey = hotkey);
         //  Define the style
         let style: Style;
-        if self.state.is_disabled {
+        if self.state.borrow().is_disabled {
             style = self.menu_bar_style.disabled_style;
-        } else if self.state.is_selected {
+        } else if self.state.borrow().is_selected {
             style = self.menu_bar_style.selected_style;
-        } else if self.state.is_focused {
+        } else if self.state.borrow().is_focused {
             style = self.menu_bar_style.focused_style;
         } else {
             style = self.menu_bar_style.default_style;
@@ -216,7 +221,7 @@ impl Widget for &MenuTab<'_> {
 
         // If there are menu tab items and the menu tab is selected
         // then render the menu tab items
-        if self.menu_tab_items.is_some() && self.state.is_selected {
+        if self.menu_tab_items.is_some() && self.state.borrow().is_selected {
             // Calculate the render area
             let mut width = 0u16;
             self.menu_tab_items
@@ -227,7 +232,7 @@ impl Widget for &MenuTab<'_> {
                     let len;
                     if menu_tab_item.hotkey.is_some() {
                         let hotkey = menu_tab_item.hotkey.unwrap();
-                        len = (menu_tab_item.label.len() + hotkey.len()) as u16 + 4;
+                        len = (menu_tab_item.label.len() + hotkey.len()) as u16 + 5;
                     } else {
                         len = menu_tab_item.label.len() as u16 + 2;
                     }
@@ -246,7 +251,7 @@ impl Widget for &MenuTab<'_> {
             // Calculate the layout for the menu tab items
             let mut constraints = vec![];
 
-            for (i, menu_tab_item) in self.menu_tab_items.as_ref().unwrap().iter().enumerate() {
+            for (_i, menu_tab_item) in self.menu_tab_items.as_ref().unwrap().iter().enumerate() {
                 let len: u16;
                 if menu_tab_item.hotkey.is_some() {
                     let hotkey = menu_tab_item.hotkey.unwrap();
@@ -273,7 +278,7 @@ impl<'a> MenuTabItem<'a> {
         label: String,
         hotkey: Option<&'a str>,
         sub_menu_tab_items: Option<Vec<MenuTabItem<'a>>>,
-        state: &'a MenuTabItemUiState,
+        state: Rc<RefCell<MenuTabItemUiState>>,
         menu_bar_style: &'a MenuBarStyle,
     ) -> Self {
         Self {
@@ -292,17 +297,17 @@ impl Widget for &MenuTabItem<'_> {
 
         // Define the label
         let hotkey = match self.hotkey {
-            Some(ch) => format!("({})", ch),
+            Some(ch) => format!(" ({})", ch),
             None => "".to_string(),
         };
         let label = format!(" {label}{hotkey} ", label = self.label, hotkey = hotkey);
         // Define the style
         let style: Style;
-        if self.state.is_disabled {
+        if self.state.borrow().is_disabled {
             style = self.menu_bar_style.disabled_style;
-        } else if self.state.is_selected {
+        } else if self.state.borrow().is_selected {
             style = self.menu_bar_style.selected_style;
-        } else if self.state.is_focused {
+        } else if self.state.borrow().is_focused {
             style = self.menu_bar_style.focused_style;
         } else {
             style = self.menu_bar_style.default_style;
