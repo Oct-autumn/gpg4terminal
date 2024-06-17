@@ -1,13 +1,10 @@
-use std::{
-    cell::{Ref, RefCell},
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Line, Span},
+    text::Span,
     widgets::{Block, Borders, Widget},
 };
 
@@ -143,14 +140,13 @@ impl Widget for &MenuBar<'_> {
             ));
         }
 
-        for (i, menu_tab) in self.menu_tabs.iter().enumerate() {
-            let len: u16;
-            if menu_tab.hotkey.is_some() {
+        for (_i, menu_tab) in self.menu_tabs.iter().enumerate() {
+            let len: u16 = if menu_tab.hotkey.is_some() {
                 let hotkey = menu_tab.hotkey.unwrap();
-                len = (menu_tab.label.len() + hotkey.len()) as u16 + 5;
+                (menu_tab.label.len() + hotkey.len()) as u16 + 5
             } else {
-                len = menu_tab.label.len() as u16 + 2;
-            }
+                menu_tab.label.len() as u16 + 2
+            };
             constraints.push(Constraint::Length(len));
         }
         constraints.push(Constraint::Min(0));
@@ -229,13 +225,12 @@ impl Widget for &MenuTab<'_> {
                 .unwrap()
                 .iter()
                 .for_each(|menu_tab_item| {
-                    let len;
-                    if menu_tab_item.hotkey.is_some() {
+                    let len = if menu_tab_item.hotkey.is_some() {
                         let hotkey = menu_tab_item.hotkey.unwrap();
-                        len = (menu_tab_item.label.len() + hotkey.len()) as u16 + 5;
+                        (menu_tab_item.label.len() + hotkey.len()) as u16 + 5
                     } else {
-                        len = menu_tab_item.label.len() as u16 + 2;
-                    }
+                        menu_tab_item.label.len() as u16 + 2
+                    };
                     if len > width {
                         width = len;
                     }

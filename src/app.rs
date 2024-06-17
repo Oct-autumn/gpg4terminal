@@ -1,11 +1,4 @@
-use std::{
-    any::Any,
-    borrow::{Borrow, BorrowMut},
-    cell::{Ref, RefCell},
-    io::Result,
-    rc::Rc,
-    sync::Mutex,
-};
+use std::io::Result;
 
 use ratatui::{
     backend::Backend,
@@ -20,9 +13,9 @@ use crate::{
     event_handler::key_board_handler,
     theme::THEME,
     ui::{
+        focus,
         menu_bar::{self, init_menu_bar_state, render_menu_bar},
-        widget::menu_bar::MenuBarUiState,
-        FocusOn, UiState,
+        UiState,
     },
 };
 
@@ -37,7 +30,7 @@ impl Default for App {
             running_state: Default::default(),
             // Initialize the UiState
             ui_state: UiState {
-                focus_on: FocusOn::MainPanel,
+                focus_on: focus::FocusOn::MainPanel,
                 menu_bar_state: init_menu_bar_state(),
             },
         }
@@ -114,27 +107,30 @@ impl Widget for &App {
 }
 
 fn render_bottom_bar(ui_state: &UiState, area: Rect, buf: &mut Buffer) {
-    let keys: Vec<(&str, &str)>;
-    if ui_state.focus_on == crate::ui::FocusOn::MenuTab
-        || matches!(ui_state.focus_on, crate::ui::FocusOn::MenuTabItem(_))
-    {
-        // In Menu
-        keys = [
-            ("Tab/Esc", "Back/Quit Menu"),
-            ("Up/Down/Left/Right", "Select"),
-            ("Enter", "Choose"),
-        ]
-        .to_vec();
-    } else {
-        // In Main
-        keys = [
+    let keys: Vec<(&str, &str)> = match ui_state.focus_on {
+        focus::FocusOn::MainPanel => [
             ("Q", "Quit"),
             ("Tab", "Menu"),
             ("Up/Down", "Select"),
             ("Enter", "Choose"),
         ]
-        .to_vec();
-    }
+        .to_vec(),
+        focus::FocusOn::MenuBar(focus::Menu::Tab) => [
+            ("L/R", "Select"),
+            ("Enter/Down", "Choose"),
+            ("Tab/Esc", "Quit Menu"),
+        ]
+        .to_vec(),
+        focus::FocusOn::MenuBar(focus::Menu::TabItem(0)) => [
+            ("Up/Down", "Select"),
+            ("Enter", "Choose"),
+            ("Esc", "Back"),
+            ("Tab", "Quit Menu"),
+        ]
+        .to_vec(),
+        _ => vec![],
+    };
+
     let mut spans: Vec<Span> = keys
         .iter()
         .flat_map(|(key, desc)| {

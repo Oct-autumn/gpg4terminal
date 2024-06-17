@@ -2,7 +2,7 @@ use std::io::Result;
 
 use crossterm::event::{self, Event, KeyCode};
 
-use crate::ui::{FocusOn, UiState};
+use crate::ui::{focus, UiState};
 
 /*
  枚举 捕获的事件
@@ -25,20 +25,19 @@ pub fn handle_events(ui_state: &UiState) -> Result<(bool, EventResult)> {
         if let Event::Key(key) = event::read()? {
             if key.kind == event::KeyEventKind::Press {
                 match ui_state.focus_on {
-                    FocusOn::MainPanel => {
+                    focus::FocusOn::MainPanel => {
                         // `Q` can quit program when in MainPanel
                         if key.code == KeyCode::Char('q') {
                             return Ok((true, EventResult::Quit));
                         }
                         // Tab can enter the menu bar when in MainPanel
                         if key.code == KeyCode::Tab
-                            && ui_state.focus_on != crate::ui::FocusOn::MenuTab
-                            && !matches!(ui_state.focus_on, crate::ui::FocusOn::MenuTabItem(_))
+                            && !matches!(ui_state.focus_on, focus::FocusOn::MenuBar(_))
                         {
                             return Ok((true, EventResult::EnterMenuBar));
                         }
                     }
-                    FocusOn::MenuTab => {
+                    focus::FocusOn::MenuBar(focus::Menu::Tab) => {
                         // `L/R` can select the next/previous menu tab when focus is on MenuTab
                         if key.code == KeyCode::Left {
                             return Ok((true, EventResult::MenuPrevItem));
@@ -57,7 +56,7 @@ pub fn handle_events(ui_state: &UiState) -> Result<(bool, EventResult)> {
                             return Ok((true, EventResult::QuitMenu));
                         }
                     }
-                    FocusOn::MenuTabItem(level) => {
+                    focus::FocusOn::MenuBar(focus::Menu::TabItem(level)) => {
                         // `Esc` can go back to previous menu when focus is on MenuTabItem
                         if key.code == KeyCode::Esc {
                             return Ok((true, EventResult::PrevMenuLevel));
